@@ -380,7 +380,9 @@ a{color:var(--accent)}
 @keyframes tin{from{opacity:0;transform:translateY(8px)}}
 
 /* Loading */
-.boot{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--paper);z-index:100;color:var(--accent)}
+.boot{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:16px;background:var(--paper);z-index:100;color:var(--accent);overflow-y:auto;padding:24px 0}
+.boot > :first-child{margin-top:auto}
+.boot > :last-child{margin-bottom:auto}
 .boot .logo{width:92px;height:94px;animation:breathe 1.6s ease-in-out infinite}
 .boot p{margin:0;color:var(--muted);font-size:13px}
 @keyframes breathe{50%{opacity:.45;transform:scale(.97)}}
@@ -405,6 +407,9 @@ a{color:var(--accent)}
 .login .btn{height:46px;justify-content:center;font-size:15px;margin-top:4px}
 .login .hint{margin:4px 0 0;font-size:12px;color:var(--muted);text-align:center}
 .lerr{display:flex;gap:8px;align-items:center;background:var(--crit-soft);color:var(--crit-ink);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:500}
+.lhelp{font-size:12.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.lhelp ol{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.lhelp code{font-size:11.5px;background:var(--surface-3);padding:0 4px;border-radius:4px}
 .side-who{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--side-ink);opacity:.9}
 .side-who:empty{display:none}
 
@@ -594,6 +599,7 @@ body.printing #printArea{display:block}
 /* URL Web App Apps Script (…/exec). Dipakai saat dashboard dibuka dari website / aplikasi HP.
    Bila deployment baru membuat URL berubah, ganti baris ini. */
 var API_URL = window.ANTHEIA_API_URL || 'https://script.google.com/macros/s/AKfycbxsPqx-Yq4IzLVLJu8rzdZTTP3Joecn3laDX8nK6gFoQCOCFue5axmV_FMft6MC3dwSkw/exec';
+var API_TIMEOUT = window.ANTHEIA_TIMEOUT || 25000;
 var JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
 var QRGEN_URL = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
 
@@ -728,7 +734,7 @@ function gs(fn, arg) {
 }
 function parseRes(t) {
   var o;
-  try { o = typeof t === 'string' ? JSON.parse(t) : t; } catch (e) { throw apiErr('Respons server tidak valid. Cek URL Web App & pengaturan deployment.'); }
+  try { o = typeof t === 'string' ? JSON.parse(t) : t; } catch (e) { throw apiErr('Server membalas dengan halaman, bukan data — kemungkinan deployment Apps Script masih versi lama', 'NET'); }
   if (!o || o.ok === false) throw apiErr(o && o.error, o && o.code);
   return o;
 }
@@ -737,9 +743,12 @@ function call(action, payload) {
   var req = { action: action, pin: S.pin, petugas: S.petugas, payload: payload || {} };
   if (MODE === 'live') return gs('api', JSON.stringify(req)).then(parseRes);
   if (MODE === 'remote') {
-    return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(req), redirect: 'follow' })
-      .then(function (r) { if (!r.ok) throw apiErr('Server tidak merespons (' + r.status + ')', 'NET'); return r.text(); }, function () { throw apiErr('Tidak ada koneksi internet', 'NET'); })
-      .then(parseRes);
+    var ctl = window.AbortController ? new AbortController() : null, timedOut = false;
+    var timer = setTimeout(function () { timedOut = true; if (ctl) ctl.abort(); }, API_TIMEOUT);
+    return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(req), redirect: 'follow', signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw apiErr('Server tidak merespons (' + r.status + ')', 'NET'); return r.text(); },
+        function () { throw apiErr(timedOut ? 'Server Apps Script tidak menjawab dalam ' + Math.round(API_TIMEOUT / 1000) + ' detik' : 'Tidak bisa terhubung ke server Apps Script', 'NET'); })
+      .then(function (t) { clearTimeout(timer); return parseRes(t); }, function (e) { clearTimeout(timer); throw e; });
   }
   return new Promise(function (res) { setTimeout(function () { res(DEMO_CALL(action, payload || {})); }, action === 'recordScans' ? 150 : 300); });
 }
@@ -2102,14 +2111,20 @@ function startPolling() {
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { poll(); flushQueue(); } });
   window.addEventListener('online', function () { scan.online = true; flushQueue(); poll(); });
 }
-function showLogin(msg) {
+function netHelp() {
+  return '<div class="lhelp"><b>Cara memperbaiki:</b><ol>' +
+    '<li>Apps Script → pastikan <code>Code.gs</code> versi terbaru (ada fungsi <code>doPost</code>).</li>' +
+    '<li><b>Deploy → Manage deployments → ✏️</b> → Version: <b>New version</b>, Execute as: <b>Me</b>, Who has access: <b>Anyone</b> → Deploy.</li>' +
+    '<li><a href="' + esc(API_URL) + '?action=version" target="_blank" rel="noopener">Cek server</a> — harus tampil <code>{"ok":true,…}</code>. Kalau yang muncul halaman dashboard, deployment masih versi lama.</li></ol></div>';
+}
+function showLogin(msg, help) {
   var b = $('#boot');
   $('#app').hidden = true;
   b.hidden = false; b.style.display = '';
   b.innerHTML = '<form class="login" id="loginForm" autocomplete="on"><span class="logo" aria-hidden="true"></span><h1>Antheia Peduli</h1><p class="sub">Absensi & santunan Kepulauan Seribu</p>' +
     '<label>Nama petugas<input name="nama" required maxlength="60" value="' + esc(S.petugas) + '" autocomplete="name" placeholder="Nama Anda"></label>' +
     '<label>PIN<input name="pin" type="password" inputmode="numeric" required autocomplete="current-password" placeholder="••••••"></label>' +
-    (msg ? '<div class="lerr">' + ico('alert', 15) + esc(msg) + '</div>' : '') +
+    (msg ? '<div class="lerr">' + ico('alert', 15) + esc(msg) + '</div>' : '') + (help ? netHelp() : '') +
     '<button class="btn primary" type="submit" id="loginBtn">Masuk</button>' +
     '<p class="hint">PIN Admin untuk semua menu · PIN Petugas untuk absensi & scan QR. Tanyakan ke admin Antheia.</p><div class="install-slot">' + installHtml() + '</div></form>';
   setTimeout(function () { var i = b.querySelector(S.petugas ? '[name=pin]' : '[name=nama]'); if (i) i.focus(); }, 50);
@@ -2127,7 +2142,7 @@ function doLogin(form) {
     return load(true).then(startPolling);
   }).catch(function (e) {
     S.pin = '';
-    showLogin(e.code === 'NET' ? e.message + '. Coba lagi.' : e.message);
+    showLogin(e.message + (e.code === 'NET' ? '.' : ''), e.code === 'NET' && MODE === 'remote');
   });
 }
 function logout(msg) {
