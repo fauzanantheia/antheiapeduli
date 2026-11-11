@@ -460,6 +460,45 @@ a{color:var(--accent)}
 .srow .who b{display:block;font-weight:600;font-size:13.5px}
 .srow .who span{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
 .srow .ok{color:var(--good-ink)} .srow .pend{color:var(--warn-ink)}
+.srow .tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.srow .end{display:flex;align-items:center;gap:2px}
+.srow .edit{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:6px;border-radius:8px;display:inline-flex}
+.srow .edit:hover{background:var(--surface-3);color:var(--ink)}
+.chip.xs{height:19px;font-size:10.5px;padding:0 7px;gap:3px}
+.chip.xs .ico{width:11px;height:11px}
+.who-come{display:flex;flex-direction:column;gap:6px}
+.who-come .lbl{font-size:12.5px;color:var(--muted);font-weight:600}
+.who-come .seg{display:flex;width:100%}
+.who-come .seg button{flex:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 6px;font-size:14px}
+.who-come .seg button[data-v="wali"][aria-pressed="true"]{background:var(--warn-soft);color:var(--warn-ink)}
+.cam-box.wali{box-shadow:0 0 0 3px var(--warn)}
+.cam-mode{position:absolute;top:10px;left:10px;right:10px;z-index:2;display:none;justify-content:center}
+.cam-mode span{background:#8a5a00;color:#fff;border-radius:99px;padding:5px 12px;font-size:12.5px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.cam-box.wali .cam-mode{display:flex}
+.flash.wali{background:#7a4f00}
+.scan-note{border-radius:14px;padding:14px;border:1px solid var(--line);background:var(--surface-2);display:flex;flex-direction:column;gap:9px}
+.scan-note[hidden]{display:none}
+.scan-note.info{background:var(--navy-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+.scan-note.waspada{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 60%,transparent)}
+.scan-note.peringatan{background:var(--crit-soft);border-color:color-mix(in srgb,var(--crit) 50%,transparent)}
+.scan-note .nh{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.scan-note .chip.solid.crit{background:var(--crit);color:#fff}
+.scan-note .chip.solid.warn{background:var(--warn);color:#3a2600}
+.scan-note .chip.solid.info{background:var(--accent);color:#fff}
+.scan-note .nh .x{margin-left:auto;border:0;background:transparent;color:var(--muted);cursor:pointer;padding:4px;border-radius:8px;display:inline-flex}
+.scan-note .nn b{display:block;font-size:16.5px;line-height:1.25}
+.scan-note .nn span{font-size:12.5px;color:var(--muted)}
+.scan-note .msg{font-size:13.5px;line-height:1.45}
+.scan-note .act{display:flex;gap:9px;align-items:flex-start;font-weight:600;font-size:14px;line-height:1.4}
+.scan-note .act .ico{flex:none;margin-top:1px}
+.scan-note.peringatan .act{color:var(--crit-ink)}
+.scan-note.waspada .act{color:var(--warn-ink)}
+.scan-note.info .act{color:var(--accent)}
+.scan-note .reasons .lbl{font-size:12px;color:var(--muted);font-weight:600;width:100%}
+.scan-note .btns{display:flex;gap:8px;flex-wrap:wrap}
+.scan-kab{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:-4px 0 12px}
+.scan-kab span{display:inline-flex;align-items:center;gap:5px}
+.scan-kab b{color:var(--ink)}
 i.tag{display:inline-block}
 i.tag::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c)}
 
@@ -820,16 +859,22 @@ function DEMO_CALL(action, p) {
   if (action === 'eventScans') return { ok: true, scans: (demoScans[p.eventDate] || []).slice() };
   if (action === 'recordScans') {
     var list = demoScans[p.eventDate] = demoScans[p.eventDate] || [];
+    var pi = S.data.periods.findIndex(function (x) { return x.key === p.eventDate.slice(0, 7); });
     var results = p.scans.map(function (sc) {
       var id = parseCode(sc.code), r = S.data.recipients.find(function (x) { return x.noId === id || x.id === id; });
       if (!r) return { code: sc.code, status: 'tidak_ditemukan' };
+      var hadir = sc.hadir !== false;
       var hit = list.find(function (x) { return x.id === (r.noId || r.id); });
-      if (hit) return { code: sc.code, id: r.id, status: 'duplikat', nama: r.nama, waktu: hit.waktu };
+      if (hit && !sc.ubah) return { code: sc.code, id: r.id, status: 'duplikat', nama: r.nama, waktu: hit.waktu, hadir: hit.hadir };
+      if (hit) {
+        hit.hadir = hadir; hit.ket = sc.catatan || '';
+        if (pi >= 0) r.att[pi] = hadir ? 1 : 0;
+        return { code: sc.code, id: r.id, status: 'diubah', nama: r.nama, waktu: hit.waktu, hadir: hadir };
+      }
       var t = new Date(sc.time || Date.now()), w = pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ':' + pad2(t.getSeconds());
-      list.push({ id: r.noId || r.id, nama: r.nama, kab: r.kab, pulau: r.pulau, status: r.status, metode: sc.metode, petugas: S.petugas || 'Demo', waktu: w });
-      var pi = S.data.periods.findIndex(function (x) { return x.key === p.eventDate.slice(0, 7); });
-      if (pi >= 0) r.att[pi] = 1;
-      return { code: sc.code, id: r.id, status: 'ok', nama: r.nama, waktu: w };
+      list.push({ id: r.noId || r.id, nama: r.nama, kab: r.kab, pulau: r.pulau, status: r.status, metode: sc.metode, petugas: S.petugas || 'Demo', waktu: w, hadir: hadir, ket: sc.catatan || '' });
+      if (pi >= 0 && hadir) r.att[pi] = 1;
+      return { code: sc.code, id: r.id, status: 'ok', nama: r.nama, waktu: w, hadir: hadir };
     });
     return { ok: true, results: results, sheet: sheetNameOf(p.eventDate), version: S.version };
   }
@@ -1451,7 +1496,7 @@ VIEWS.absensi = function () {
     '<div class="fl"><label for="aTgl">Tanggal</label><input id="aTgl" type="date" data-abs="tgl" value="' + esc(A.tgl) + '" style="border:0;background:transparent;height:36px;outline:none"></div></div>';
   h += '<div class="pills" role="group" aria-label="Pulau"><button class="pill" data-act="absPulau" data-pulau="" aria-pressed="' + (!A.pulau) + '">Semua <small>' + base.length + '</small></button>' +
     pulauKab.map(function (p) { var n = base.filter(function (r) { return r.pulau === p; }).length; return n ? '<button class="pill" data-act="absPulau" data-pulau="' + esc(p) + '" aria-pressed="' + (A.pulau === p) + '">' + esc(p) + ' <small>' + n + '</small></button>' : ''; }).join('') + '</div>';
-  if (per.eff === 'Tanpa Absensi') h += '<div class="rule mt">' + ico('info', 18) + '<div>Periode ini berstatus <b>Tanpa Absensi</b> — santunan tetap dihitung, tetapi kehadiran tidak masuk statistik. Ubah statusnya di halaman Penyaluran bila absensi ingin dicatat.</div></div>';
+  if (per.eff === 'Tanpa Absensi') h += '<div class="rule mt">' + ico('info', 18) + '<div>Periode ini berstatus <b>Tanpa Absensi</b>' + (per.catatan ? ' — ' + esc(per.catatan) : '') + '. Santunan tetap dihitung untuk semua penerima, tetapi kehadiran tidak masuk statistik maupun hitungan peringatan. Ubah statusnya di halaman Penyaluran bila absensi ingin dicatat.</div></div>';
   if (per.eff === 'Dibatalkan') h += '<div class="rule mt">' + ico('info', 18) + '<div>Periode ini berstatus <b>Dibatalkan</b>.</div></div>';
   h += '<div class="abs-sum"><span class="chip good">' + ico('check', 13) + fmtN(hadirN) + ' hadir</span><span class="chip ' + (isNew ? 'outline' : 'crit') + '">' + fmtN(list.length - hadirN) + (isNew ? ' belum ditandai' : ' tidak hadir') + '</span>' +
     '<div class="seg" style="margin-left:auto"><button data-act="absView" data-v="semua" aria-pressed="' + (A.view === 'semua') + '">Semua</button><button data-act="absView" data-v="belum" aria-pressed="' + (A.view === 'belum') + '">Belum hadir</button></div>' +
@@ -1547,7 +1592,7 @@ VIEWS.peringatan = function () {
     .sort(function (a, b) { return b.base - a.base || b.streak - a.streak || a.nama.localeCompare(b.nama); });
   var np = nextPeriod();
   var h = pageHead('Peringatan Kehadiran', 'Anak yang perlu diingatkan agar hadir langsung', '<button class="btn" data-act="csvWarn">' + ico('download') + '<span>Unduh CSV</span></button>');
-  h += '<div class="rule">' + ico('info', 18) + '<div><b>Aturan:</b> tidak hadir lebih dari <b>' + st.batas + '×</b> (' + (st.mode === 'Total' ? 'dihitung total' : 'berturut-turut') + (st.sejak ? ' sejak ' + esc(st.sejak) : ' sejak periode pertama') + ') mendapat peringatan dan <b>wajib hadir</b> pada penyaluran berikutnya' + (np ? ' (' + esc(np.long) + ')' : '') + '. Santunan tetap diterima melalui wali. Aturan bisa diubah di sheet <i>Pengaturan Dashboard</i>.</div></div>';
+  h += '<div class="rule">' + ico('info', 18) + '<div><b>Aturan:</b> tidak hadir lebih dari <b>' + st.batas + '×</b> (' + (st.mode === 'Total' ? 'dihitung total' : 'berturut-turut') + (st.sejak ? ' sejak ' + esc(st.sejak) : ' sejak periode pertama') + ') mendapat peringatan dan <b>wajib hadir</b> pada penyaluran berikutnya' + (np ? ' (' + esc(np.long) + ')' : '') + '. Santunan tetap diterima melalui wali (absensi anak tetap tidak hadir). Saat scan QR, petugas mendapat notifikasi: <b>' + Math.max(1, st.batas - 1) + '×</b> informasi · <b>' + st.batas + '×</b> waspada · <b>lebih dari ' + st.batas + '×</b> peringatan untuk teguran. Periode <i>Tanpa Absensi</i> (mis. Januari 2026, dihandle tim pulau) tidak dihitung. Aturan bisa diubah di sheet <i>Pengaturan Dashboard</i>.</div></div>';
   h += filterRow({ range: false });
   h += '<div class="grid g-4">' + tileS('alert', 'Peringatan', fmtN(warn.length) + '<small>anak</small>', 'Tidak hadir > ' + st.batas + '×') +
     tileS('info', 'Waspada', fmtN(was.length) + '<small>anak</small>', 'Tepat ' + st.batas + '× — satu lagi jadi peringatan') +
@@ -1650,7 +1695,7 @@ function openPerson(id) {
   var M = S.M;
   var tl = M.P.filter(function (p) { return p.santunan || p.eff === 'Belum'; }).map(function (p) {
     if (!r.elig[p.i]) return '<div class="tl n" title="Belum terdaftar">' + esc(p.short) + '<b>' + ico('dash', 15) + '</b></div>';
-    if (!r.eligA[p.i]) return '<div class="tl n" title="' + esc(p.eff === 'Terlaksana' ? 'Absensi wilayah ini belum dicatat' : p.eff) + '">' + esc(p.short) + '<b>' + ico(p.santunan ? 'coins' : 'clock', 15) + '</b></div>';
+    if (!r.eligA[p.i]) return '<div class="tl n" title="' + esc(p.eff === 'Terlaksana' ? 'Absensi wilayah ini belum dicatat' : p.eff + (p.catatan ? ' — ' + p.catatan : '')) + '">' + esc(p.short) + '<b>' + ico(p.santunan ? 'coins' : 'clock', 15) + '</b></div>';
     var hd = r.att[p.i] === 1;
     return '<div class="tl ' + (hd ? 'h' : 't') + '" title="' + esc(p.long + ': ' + (hd ? 'Hadir' : 'Tidak hadir') + (r.ket[p.key] ? ' — ' + r.ket[p.key] : '')) + '">' + esc(p.short) + '<b>' + ico(hd ? 'check' : 'x', 15) + '</b></div>';
   }).join('');
@@ -1776,7 +1821,8 @@ function openPeriodForm(key) {
    SCAN QR — kamera (website/aplikasi), foto QR, input manual / scanner USB
    ========================================================= */
 var cam = { stream: null, running: false, timer: null, detector: null, busy: false, canvas: null };
-var scan = { date: todayIso(), list: [], loadedFor: null, queue: store.get('scanq', []), flushing: false, online: true, last: { code: '', t: 0 }, bg: null };
+var scan = { date: todayIso(), list: [], loadedFor: null, queue: store.get('scanq', []), flushing: false, online: true, last: { code: '', t: 0 }, bg: null, mode: 'hadir', noteId: null };
+scan.queue.forEach(function (q) { delete q.inflight; });
 var loadedScripts = {};
 
 function loadScript(url) {
@@ -1802,20 +1848,25 @@ function findRec(code) {
 
 function scanView() {
   var cameraBlocked = MODE === 'live';
-  var h = pageHead('Absensi Penyaluran', 'Scan QR di ID card — kehadiran langsung tercatat di Spreadsheet.');
+  var h = pageHead('Absensi Penyaluran', 'Scan QR di ID card — langsung tercatat di Spreadsheet. Anak tidak datang dan kartunya dibawa wali? Pilih “Diwakilkan wali”: santunan tetap diserahkan, absensi anak tetap tidak hadir.');
   h += absTabs();
   h += '<div class="scan-grid"><div class="card scan-main">' +
     '<div class="scan-top"><div class="fl"><label for="evDate">' + ico('cal', 15) + ' Tanggal event</label><input id="evDate" type="date" value="' + esc(scan.date) + '" style="border:0;background:transparent;height:36px;outline:none"></div>' +
     '<span class="chip info" id="evSheet">' + ico('table', 13) + 'Sheet: ' + esc(sheetNameOf(scan.date)) + '</span></div>' +
-    '<div class="cam-box" id="camBox"><video id="camVideo" playsinline muted autoplay></video><div class="cam-guide"><i></i><i></i><i></i><i></i></div>' +
+    '<div class="who-come"><span class="lbl">Yang datang</span><div class="seg" role="group" aria-label="Yang datang">' +
+    '<button data-act="scanMode" data-v="hadir" aria-pressed="' + (scan.mode !== 'wali') + '">' + ico('check', 16) + 'Anak hadir</button>' +
+    '<button data-act="scanMode" data-v="wali" aria-pressed="' + (scan.mode === 'wali') + '">' + ico('users', 16) + 'Diwakilkan wali</button></div></div>' +
+    '<div class="cam-box' + (scan.mode === 'wali' ? ' wali' : '') + '" id="camBox"><video id="camVideo" playsinline muted autoplay></video><div class="cam-guide"><i></i><i></i><i></i><i></i></div>' +
+    '<div class="cam-mode"><span>Diwakilkan wali — untuk 1 scan berikutnya</span></div>' +
     '<div class="cam-msg" id="camMsg">' + (cameraBlocked ? ico('info', 22) + '<b>Kamera tidak tersedia di halaman Google Apps Script</b><span>Buka lewat website / aplikasi Antheia Peduli untuk scan langsung. Di sini bisa pakai <b>Foto QR</b> atau scanner USB.</span>' : ico('qr', 26) + '<b>Kamera belum aktif</b><span>Tekan “Mulai kamera”, arahkan ke QR di ID card.</span>') + '</div>' +
     '<div class="flash" id="scanFlash" aria-live="assertive"></div></div>' +
+    '<div class="scan-note" id="scanNote" hidden aria-live="polite"></div>' +
     '<div class="scan-btns">' + (cameraBlocked ? '' : '<button class="btn primary" data-act="camToggle" id="camBtn">' + ico('qr') + 'Mulai kamera</button>') +
     '<label class="btn"' + (cameraBlocked ? ' style="flex:1;justify-content:center"' : '') + '>' + ico('photo') + 'Foto QR<input type="file" accept="image/*" capture="environment" id="photoIn" hidden></label></div>' +
     '<div class="scan-manual"><div class="search">' + ico('search', 17) + '<input id="scanInput" placeholder="No ID / nama anak, atau pakai scanner USB…" autocomplete="off" enterkeyhint="go"></div><div id="scanSugg" class="sugg"></div></div>' +
     '</div>' +
-    '<div class="card scan-side"><div class="card-h"><div><h2>Sudah hadir</h2><p id="scanSub">Memuat…</p></div><div class="tools"><span id="scanNet"></span></div></div>' +
-    '<div class="scan-stats" id="scanStats"></div><div class="scan-list" id="scanList"></div></div></div>';
+    '<div class="card scan-side"><div class="card-h"><div><h2>Santunan diserahkan</h2><p id="scanSub">Memuat…</p></div><div class="tools"><span id="scanNet"></span></div></div>' +
+    '<div class="scan-stats" id="scanStats"></div><div class="scan-kab" id="scanKab"></div><div class="scan-list" id="scanList"></div></div></div>';
   after.push(initScanView);
   return h;
 }
@@ -1827,7 +1878,7 @@ function initScanView() {
   var d = $('#evDate');
   if (d) d.addEventListener('change', function () {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.value)) return;
-    scan.date = d.value; scan.list = []; scan.loadedFor = null;
+    scan.date = d.value; scan.list = []; scan.loadedFor = null; hideNote();
     $('#evSheet').innerHTML = ico('table', 13) + 'Sheet: ' + esc(sheetNameOf(scan.date));
     loadEventList();
   });
@@ -1839,6 +1890,7 @@ function initScanView() {
     inp.addEventListener('input', function () { suggest(inp.value); });
   }
   if (scan.loadedFor !== scan.date) loadEventList(); else updateScanUI();
+  if (scan.noteId) showNote(scan.noteId, true);
   if (scan.queue.length) flushQueue();
 }
 function loadEventList() {
@@ -1847,11 +1899,17 @@ function loadEventList() {
   API.scans(date).then(function (list) {
     if (date !== scan.date) return;
     var pend = scan.list.filter(function (x) { return !x.sent; });
-    scan.list = list.map(function (x) { x.sent = true; return x; }).reverse();
-    pend.forEach(function (x) { if (!scan.list.some(function (y) { return y.id === x.id; })) scan.list.unshift(x); });
+    scan.list = list.map(function (x) { x.sent = true; x.hadir = x.hadir !== false; return x; }).reverse();
+    pend.forEach(function (x) {
+      var y = scan.list.find(function (z) { return z.id === x.id; });
+      if (!y) scan.list.unshift(x); else { y.hadir = x.hadir; y.alasan = x.alasan; y.sent = false; }
+    });
+    // antrean (offline) ikut tampil — termasuk koreksi Hadir ⇄ Diwakilkan yang belum terkirim
     scan.queue.filter(function (q) { return q.date === date; }).forEach(function (q) {
-      var r = findRec(q.code);
-      if (r && !scan.list.some(function (y) { return y.id === (r.noId || r.id); })) scan.list.unshift({ id: r.noId || r.id, nama: r.nama, pulau: r.pulau, kab: r.kab, status: r.status, waktu: q.time.slice(11, 19), metode: q.metode, sent: false });
+      var r = findRec(q.code); if (!r) return;
+      var y = scan.list.find(function (z) { return z.id === (r.noId || r.id); });
+      if (!y) scan.list.unshift({ id: r.noId || r.id, nama: r.nama, pulau: r.pulau, kab: r.kab, status: r.status, waktu: q.time.slice(11, 19), metode: q.metode, sent: false, hadir: q.hadir !== false, alasan: q.alasan || '' });
+      else { y.hadir = q.hadir !== false; y.alasan = q.alasan || ''; y.sent = false; }
     });
     scan.loadedFor = date; scan.online = true;
     updateScanUI();
@@ -1865,16 +1923,120 @@ function updateScanUI() {
   var per = S.M.P.find(function (p) { return p.key === scan.date.slice(0, 7); });
   var tot = function (k) { return S.M.people.filter(function (r) { return r.kab === k && (!per || r.elig[per.i]); }).length; };
   var n = function (k) { return scan.list.filter(function (x) { return x.kab === k; }).length; };
-  st.innerHTML = '<div><b class="num">' + scan.list.length + '</b><span>hadir</span></div>' +
-    '<div><b class="num">' + n('Utara') + '<small>/' + tot('Utara') + '</small></b><span><i class="tag ksu"></i>KSU</span></div>' +
-    '<div><b class="num">' + n('Selatan') + '<small>/' + tot('Selatan') + '</small></b><span><i class="tag kss"></i>KSS</span></div>';
+  var wali = scan.list.filter(function (x) { return x.hadir === false; }).length;
+  st.innerHTML = '<div><b class="num">' + scan.list.length + '</b><span>total</span></div>' +
+    '<div><b class="num">' + (scan.list.length - wali) + '</b><span>' + ico('check', 12) + 'anak hadir</span></div>' +
+    '<div><b class="num">' + wali + '</b><span>' + ico('users', 12) + 'diwakilkan</span></div>';
+  $('#scanKab').innerHTML = '<span><i class="tag ksu"></i>KSU <b class="num">' + n('Utara') + '</b>/' + tot('Utara') + '</span>' +
+    '<span><i class="tag kss"></i>KSS <b class="num">' + n('Selatan') + '</b>/' + tot('Selatan') + '</span>' +
+    '<span>Yang diwakilkan tetap tercatat <b>tidak hadir</b> di absensi</span>';
   var pending = scan.queue.length;
   $('#scanSub').textContent = sheetNameOf(scan.date) + (scan.loadedFor === scan.date ? '' : ' · memuat…');
   $('#scanNet').innerHTML = pending ? '<span class="chip warn">' + ico('clock', 13) + pending + ' antre' + (scan.online ? '' : ' · offline') + '</span>' : (scan.online ? '<span class="chip good">' + ico('check', 13) + 'Tersimpan</span>' : '<span class="chip crit">Offline</span>');
+  var evKey = scan.date.slice(0, 7);
   $('#scanList').innerHTML = scan.list.length ? scan.list.slice(0, 300).map(function (x) {
-    return '<div class="srow"><span class="t num">' + esc(String(x.waktu || '').slice(0, 5)) + '</span><div class="who"><b>' + esc(titleCase(x.nama)) + '</b><span><i class="tag ' + kabCls(x.kab) + '"></i>' + esc(x.pulau) + ' · ' + esc(x.metode || 'QR') + '</span></div>' +
-      (x.sent ? '<span class="ok" title="Tersimpan di Spreadsheet">' + ico('check', 16) + '</span>' : '<span class="pend" title="Menunggu dikirim">' + ico('clock', 16) + '</span>') + '</div>';
+    var r = findRec(x.id), nt = r ? noticeFor(r, x.hadir === false, evKey) : null;
+    var tags = (x.hadir === false ? '<span class="chip xs warn">' + ico('users', 11) + 'Diwakilkan wali</span>' : '') +
+      (nt && nt.lv ? '<span class="chip xs ' + LV_CLS[nt.lv] + '">' + (nt.lv === 'peringatan' ? ico('alert', 11) : '') + (x.hadir === false ? 'Tidak hadir ke-' + nt.n : nt.prev + '× tidak hadir') + '</span>' : '') +
+      (x.alasan ? '<span class="chip xs outline">' + esc(x.alasan) + '</span>' : '');
+    return '<div class="srow"><span class="t num">' + esc(String(x.waktu || '').slice(0, 5)) + '</span><div class="who"><b>' + esc(titleCase(x.nama)) + '</b><span><i class="tag ' + kabCls(x.kab) + '"></i>' + esc(x.pulau) + ' · ' + esc(x.metode || 'QR') + '</span>' + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div>' +
+      '<div class="end">' + (x.sent ? '<span class="ok" title="Tersimpan di Spreadsheet">' + ico('check', 16) + '</span>' : '<span class="pend" title="Menunggu dikirim">' + ico('clock', 16) + '</span>') +
+      '<button class="edit" data-act="scanEdit" data-id="' + esc(x.id) + '" title="Lihat / ubah (hadir, diwakilkan, alasan)" aria-label="Ubah ' + esc(titleCase(x.nama)) + '">' + ico('edit', 15) + '</button></div></div>';
   }).join('') : '<div class="empty">Belum ada yang tercatat di tanggal ini</div>';
+}
+
+/* ---- riwayat tidak hadir & notifikasi teguran saat scan ----
+   Dihitung dari periode "Terlaksana" SEBELUM bulan event (Tanpa Absensi / Januari 2026 tidak dihitung),
+   memakai aturan di Pengaturan Dashboard (Batas Tidak Hadir, Mode Peringatan, Hitung Sejak).
+   Default batas 3: 2× = Informasi · 3× = Waspada · lebih dari 3× = Peringatan (teguran). */
+var LV_LABEL = { info: 'Informasi', waspada: 'Waspada', peringatan: 'Peringatan' };
+var LV_CLS = { info: 'info', waspada: 'warn', peringatan: 'crit' };
+function riwayat(r, eventKey) {
+  var st = S.data.settings;
+  var list = S.M.attP.filter(function (p) { return p.key < eventKey && r.eligA[p.i] && (!st.sejak || p.key >= st.sejak); });
+  var absent = list.filter(function (p) { return r.att[p.i] !== 1; });
+  var streak = 0;
+  for (var k = list.length - 1; k >= 0; k--) { if (r.att[list[k].i] === 1) break; streak++; }
+  var berturut = st.mode === 'Berturut-turut';
+  var shown = berturut ? absent.slice(absent.length - streak) : absent;
+  return { n: berturut ? streak : absent.length, months: shown.map(function (p) { return p.short; }), berturut: berturut };
+}
+function noticeFor(r, wali, eventKey) {
+  var h = riwayat(r, eventKey), B = Number(S.data.settings.batas) || 3;
+  var n = h.n + (wali ? 1 : 0);   // diwakilkan = hari ini juga tidak hadir
+  var lv = n > B ? 'peringatan' : n === B ? 'waspada' : (n > 0 && n === B - 1) ? 'info' : '';
+  var o = { lv: lv, n: n, prev: h.n, months: h.months, wali: wali, berturut: h.berturut, batas: B };
+  var bt = h.berturut ? ' berturut-turut' : '';
+  if (wali) {
+    o.title = 'Tidak hadir ke-' + n + bt;
+    o.act = lv === 'peringatan' ? 'Berikan teguran kepada penerima/wali — anak wajib hadir pada penyaluran berikutnya.'
+      : lv === 'waspada' ? 'Sampaikan teguran lisan kepada wali — satu kali lagi tidak hadir akan mendapat peringatan.'
+      : lv === 'info' ? 'Ingatkan wali agar anak hadir pada penyaluran berikutnya.'
+      : 'Santunan diserahkan kepada wali. Absensi anak tetap tercatat tidak hadir.';
+  } else {
+    o.title = h.n ? 'Hadir hari ini · sebelumnya ' + h.n + '× tidak hadir' + bt : 'Hadir hari ini';
+    o.act = lv === 'peringatan' ? 'Wajib hadir terpenuhi. Ingatkan anak & wali agar tidak absen lagi.'
+      : lv === 'waspada' ? 'Ingatkan: satu kali lagi tidak hadir akan mendapat peringatan.'
+      : lv === 'info' ? 'Ingatkan agar terus hadir di penyaluran berikutnya.' : '';
+  }
+  // ditulis ke kolom Keterangan di sheet tanggal event
+  o.catatan = lv ? LV_LABEL[lv] + ': ' + (wali ? 'tidak hadir ke-' + n : n + '× tidak hadir sebelumnya') + bt + (wali && lv !== 'info' ? ' — teguran' : '') : '';
+  return o;
+}
+function hideNote() { scan.noteId = null; var b = $('#scanNote'); if (b) { b.hidden = true; b.innerHTML = ''; } }
+/* Kartu notifikasi di bawah kamera — tetap tampil sampai scan berikutnya / ditutup */
+function showNote(id, force) {
+  var box = $('#scanNote'); if (!box) return;
+  var item = scan.list.find(function (x) { return x.id === id; }), r = findRec(id);
+  if (!item || !r) return hideNote();
+  var wali = item.hadir === false, nt = noticeFor(r, wali, scan.date.slice(0, 7));
+  if (!force && !wali && !nt.lv) return hideNote();
+  scan.noteId = id;
+  box.className = 'scan-note' + (nt.lv ? ' ' + nt.lv : '');
+  var reasons = S.data.settings.ketOptions || [];
+  var known = reasons.some(function (x) { return x.toLowerCase() === String(item.alasan || '').toLowerCase(); });
+  var h = '<div class="nh">' + (nt.lv ? '<span class="chip solid ' + LV_CLS[nt.lv] + '">' + ico(nt.lv === 'peringatan' ? 'alert' : 'info', 13) + LV_LABEL[nt.lv] + '</span>' : '') +
+    (wali ? '<span class="chip warn">' + ico('users', 13) + 'Diwakilkan wali</span>' : '<span class="chip good">' + ico('check', 13) + 'Anak hadir</span>') +
+    '<button class="x" data-act="noteClose" aria-label="Tutup notifikasi">' + ico('x', 18) + '</button></div>' +
+    '<div class="nn"><b>' + esc(titleCase(r.nama)) + '</b><span>' + esc(r.pulau) + ' · ' + esc(r.kab === 'Utara' ? 'KSU' : r.kab === 'Selatan' ? 'KSS' : r.kab) + ' · ' + esc(r.status) + ' · pukul ' + esc(String(item.waktu || '').slice(0, 5)) + '</span></div>' +
+    '<div class="msg"><b>' + esc(nt.title) + '</b>' + (nt.months.length ? '<br>Riwayat tidak hadir: ' + esc(nt.months.join(', ')) + (wali ? ' + hari ini' : '') : '') + '</div>' +
+    (nt.act ? '<div class="act">' + ico(nt.lv === 'peringatan' ? 'alert' : 'info', 18) + '<span>' + esc(nt.act) + '</span></div>' : '');
+  if (wali) {
+    h += '<div class="reasons"><span class="lbl">Alasan anak tidak hadir (opsional — tercatat di Absensi + Keterangan)</span>' +
+      reasons.map(function (x) { return '<button data-act="scanKet" data-id="' + esc(id) + '" data-ket="' + esc(x) + '" aria-pressed="' + (String(item.alasan || '').toLowerCase() === x.toLowerCase()) + '">' + esc(x) + '</button>'; }).join('') +
+      '<input id="noteKet" placeholder="Alasan lain… (Enter)" value="' + esc(known ? '' : item.alasan || '') + '" aria-label="Alasan lain"></div>';
+  }
+  h += '<div class="btns"><button class="btn sm" data-act="scanSet" data-id="' + esc(id) + '" data-h="' + (wali ? '1' : '0') + '">' + ico(wali ? 'check' : 'users', 15) + (wali ? 'Ubah: anak hadir' : 'Ubah: diwakilkan wali') + '</button></div>';
+  box.innerHTML = h;
+  box.hidden = false;
+  var inp = $('#noteKet');
+  if (inp) {
+    var submit = function () { var v = inp.value.trim(); if (v !== String(item.alasan || '') && !(known && !v)) scanUpdate(id, false, v); };
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    inp.addEventListener('change', submit);
+  }
+}
+function setScanMode(v) {
+  scan.mode = v === 'wali' ? 'wali' : 'hadir';
+  $$('.who-come [data-act="scanMode"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === scan.mode)); });
+  var box = $('#camBox'); if (box) box.classList.toggle('wali', scan.mode === 'wali');
+}
+/* Koreksi satu baris: Hadir ⇄ Diwakilkan wali, atau alasan tidak hadir. alasan null = tidak diubah. */
+function scanUpdate(id, hadir, alasan) {
+  var item = scan.list.find(function (x) { return x.id === id; }), r = findRec(id);
+  if (!item || !r) return;
+  item.hadir = hadir;
+  item.alasan = hadir ? '' : (alasan == null ? item.alasan || '' : alasan);
+  var nt = noticeFor(r, !hadir, scan.date.slice(0, 7));
+  item.sent = false;
+  var q = scan.queue.find(function (x) { return x.date === scan.date && parseCode(x.code) === id && !x.inflight; });
+  if (q) { q.hadir = hadir; q.alasan = item.alasan; q.catatan = nt.catatan; }
+  else scan.queue.push({ date: scan.date, code: qrPayload(r), time: new Date().toISOString(), metode: item.metode || 'QR', hadir: hadir, alasan: item.alasan, catatan: nt.catatan, ubah: true });
+  store.set('scanq', scan.queue);
+  markLocal(r.id, scan.date, hadir ? 1 : 0);
+  showNote(id, true);
+  updateScanUI();
+  flushQueue();
 }
 
 /* ---- feedback: kartu besar + bunyi + getar ---- */
@@ -1893,14 +2055,14 @@ function beep(kind) {
   try { if (navigator.vibrate) navigator.vibrate(kind === 'ok' ? 60 : [80, 60, 80]); } catch (e) { /* tanpa getar */ }
 }
 var flashTimer = null;
-function feedback(kind, title, sub) {
-  beep(kind);
+function feedback(kind, title, sub, ms) {
+  beep(kind === 'wali' ? 'ok' : kind);
   var f = $('#scanFlash');
-  if (!f) { toast(title + (sub ? ' — ' + sub : ''), kind === 'ok' ? 'ok' : 'err'); return; }
+  if (!f) { toast(title + (sub ? ' — ' + sub : ''), kind === 'ok' || kind === 'wali' ? 'ok' : 'err'); return; }
   f.className = 'flash on ' + kind;
-  f.innerHTML = ico(kind === 'ok' ? 'okc' : kind === 'warn' ? 'info' : 'noc', 30) + '<div><b>' + esc(title) + '</b><span>' + esc(sub || '') + '</span></div>';
+  f.innerHTML = ico(kind === 'ok' ? 'okc' : kind === 'wali' ? 'users' : kind === 'warn' ? 'info' : 'noc', 30) + '<div><b>' + esc(title) + '</b><span>' + esc(sub || '') + '</span></div>';
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(function () { f.className = 'flash'; }, kind === 'ok' ? 2200 : 3200);
+  flashTimer = setTimeout(function () { f.className = 'flash'; }, ms || (kind === 'ok' ? 2200 : 3200));
 }
 
 /* ---- inti: satu hasil scan ---- */
@@ -1912,27 +2074,45 @@ function handleScan(text, metode) {
   if (!r) return feedback('err', 'QR tidak dikenal', String(text).slice(0, 40));
   var key = r.noId || r.id;
   var hit = scan.list.find(function (x) { return x.id === key; });
-  if (hit) return feedback('warn', titleCase(r.nama), 'Sudah absen pukul ' + String(hit.waktu).slice(0, 5));
-  var item = { id: key, nama: r.nama, pulau: r.pulau, kab: r.kab, status: r.status, waktu: nowHms(), metode: metode, sent: false };
+  if (hit) {
+    feedback('warn', titleCase(r.nama), 'Sudah tercatat pukul ' + String(hit.waktu).slice(0, 5) + (hit.hadir === false ? ' · diwakilkan wali' : ' · hadir'));
+    return showNote(key, true);
+  }
+  var wali = scan.mode === 'wali';
+  var nt = noticeFor(r, wali, scan.date.slice(0, 7));
+  var item = { id: key, nama: r.nama, pulau: r.pulau, kab: r.kab, status: r.status, waktu: nowHms(), metode: metode, sent: false, hadir: !wali, alasan: '' };
   scan.list.unshift(item);
-  scan.queue.push({ date: scan.date, code: qrPayload(r), time: new Date().toISOString(), metode: metode });
+  scan.queue.push({ date: scan.date, code: qrPayload(r), time: new Date().toISOString(), metode: metode, hadir: !wali, catatan: nt.catatan });
   store.set('scanq', scan.queue);
-  markLocal(r.id, scan.date);
-  feedback('ok', titleCase(r.nama), r.pulau + ' · ' + r.status + (r.level === 'peringatan' ? ' · wajib hadir ✓' : ''));
+  if (!wali) markLocal(r.id, scan.date, 1);
+  var lvTxt = nt.lv ? ' · ' + LV_LABEL[nt.lv] + ': ' + (wali ? 'tidak hadir ke-' + nt.n : nt.prev + '× tidak hadir') : '';
+  if (wali) feedback('wali', titleCase(r.nama), 'Diwakilkan wali · santunan diserahkan' + lvTxt, 3600);
+  else feedback('ok', titleCase(r.nama), r.pulau + ' · ' + r.status + lvTxt, nt.lv ? 3600 : 2200);
+  if (nt.lv === 'peringatan' || nt.lv === 'waspada') setTimeout(function () { beep('warn'); }, 260);
+  showNote(key, false);
+  if (wali) setScanMode('hadir');   // mode wali hanya untuk 1 scan
   updateScanUI();
   flushQueue();
 }
-function markLocal(id, date) {
+function markLocal(id, date, v) {
   var pi = S.data.periods.findIndex(function (p) { return p.key === date.slice(0, 7); });
   var rec = S.data.recipients.find(function (x) { return x.id === id; });
-  if (pi >= 0 && rec && rec.att[pi] !== 1) { rec.att[pi] = 1; S.M = buildModel(S.data); recapCache = null; }
+  v = v === 0 ? 0 : 1;
+  if (pi >= 0 && rec && rec.att[pi] !== v) { rec.att[pi] = v; S.M = buildModel(S.data); recapCache = null; }
 }
 function flushQueue() {
   if (scan.flushing || !scan.queue.length) return;
   scan.flushing = true;
   var date = scan.queue[0].date;
   var batch = scan.queue.filter(function (q) { return q.date === date; }).slice(0, 40);
-  API.record(date, batch.map(function (q) { return { code: q.code, time: q.time, metode: q.metode }; })).then(function (res) {
+  batch.forEach(function (q) { q.inflight = true; });
+  API.record(date, batch.map(function (q) {
+    var o = { code: q.code, time: q.time, metode: q.metode, hadir: q.hadir !== false };
+    if (q.alasan) o.alasan = q.alasan;
+    if (q.catatan) o.catatan = q.catatan;
+    if (q.ubah) o.ubah = true;
+    return o;
+  })).then(function (res) {
     var sent = batch.map(function (q) { return q.code + '|' + q.time; });
     scan.queue = scan.queue.filter(function (q) { return sent.indexOf(q.code + '|' + q.time) < 0; });
     store.set('scanq', scan.queue);
@@ -1941,8 +2121,17 @@ function flushQueue() {
       var id = parseCode(x.code);
       var r = findRec(x.code), key = r ? (r.noId || r.id) : id;
       var it = date === scan.date ? scan.list.find(function (y) { return y.id === key; }) : null;
-      if (x.status === 'tidak_ditemukan') { if (it) scan.list.splice(scan.list.indexOf(it), 1); toast('QR ' + id + ' tidak ditemukan di Database', 'err'); }
-      else if (it) { it.sent = true; if (x.status === 'duplikat' && x.waktu) it.waktu = x.waktu; }
+      if (x.status === 'tidak_ditemukan') { if (it) scan.list.splice(scan.list.indexOf(it), 1); toast('QR ' + id + ' tidak ditemukan di Database', 'err'); return; }
+      if (!it) return;
+      var waiting = scan.queue.some(function (q) { return q.date === date && parseCode(q.code) === key; });
+      if (waiting) return;   // masih ada koreksi berikutnya di antrean
+      it.sent = true;
+      if (x.status === 'duplikat' && x.waktu) it.waktu = x.waktu;
+      if (typeof x.hadir === 'boolean' && it.hadir !== x.hadir) {
+        // sudah tercatat lebih dulu (mis. oleh petugas lain) → ikuti Spreadsheet
+        it.hadir = x.hadir; if (r) markLocal(r.id, date, x.hadir ? 1 : 0);
+        if (scan.noteId === key) showNote(key, true);
+      }
     });
     if (res.warning) toast(res.warning, 'err');
     updateScanUI();
@@ -1950,6 +2139,7 @@ function flushQueue() {
     clearTimeout(scan.bg); scan.bg = setTimeout(function () { load(false); }, 20000);
   }).catch(function (e) {
     scan.flushing = false;
+    batch.forEach(function (q) { delete q.inflight; });
     if (e.code === 'AUTH') return logout(e.message);
     scan.online = false; updateScanUI();
     setTimeout(flushQueue, 5000);
@@ -2061,8 +2251,8 @@ function suggest(v) {
   var box = $('#scanSugg'); if (!box) return;
   var hits = /^\d+$/.test(String(v).trim()) ? [] : nameHits(v);
   box.innerHTML = hits.map(function (r) {
-    var done = scan.list.some(function (x) { return x.id === (r.noId || r.id); });
-    return '<button data-act="scanPick" data-code="' + esc(qrPayload(r)) + '"' + (done ? ' disabled' : '') + '><b>' + esc(titleCase(r.nama)) + '</b><span>' + esc(r.pulau) + ' · ' + esc(r.status) + (done ? ' · sudah hadir' : '') + '</span></button>';
+    var done = scan.list.find(function (x) { return x.id === (r.noId || r.id); });
+    return '<button data-act="scanPick" data-code="' + esc(qrPayload(r)) + '"' + (done ? ' disabled' : '') + '><b>' + esc(titleCase(r.nama)) + '</b><span>' + esc(r.pulau) + ' · ' + esc(r.status) + (done ? (done.hadir === false ? ' · sudah diwakilkan' : ' · sudah hadir') : '') + '</span></button>';
   }).join('');
 }
 
@@ -2311,6 +2501,17 @@ var ACT = {
   absTab: function (el) { S.abs.tab = el.getAttribute('data-tab'); render(); },
   camToggle: function () { if (cam.running) stopCamera(); else startCamera(); },
   scanPick: function (el) { handleScan(el.getAttribute('data-code'), 'Manual'); var i = $('#scanInput'); if (i) { i.value = ''; i.focus(); } suggest(''); },
+  scanMode: function (el) { setScanMode(el.getAttribute('data-v')); },
+  noteClose: function () { hideNote(); },
+  scanSet: function (el) { scanUpdate(el.getAttribute('data-id'), el.getAttribute('data-h') === '1', null); },
+  scanKet: function (el) {
+    var id = el.getAttribute('data-id'), k = el.getAttribute('data-ket'), it = scan.list.find(function (x) { return x.id === id; });
+    scanUpdate(id, false, it && String(it.alasan || '').toLowerCase() === k.toLowerCase() ? '' : k);
+  },
+  scanEdit: function (el) {
+    showNote(el.getAttribute('data-id'), true);
+    var b = $('#scanNote'); if (b && b.scrollIntoView) b.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
   logout: function () { logout(''); },
   openQr: function () {
     var F = filteredPeople(), q = S.pen.q.trim().toLowerCase();
@@ -2481,7 +2682,7 @@ function poll() {
 if (S.theme) document.documentElement.setAttribute('data-theme', S.theme);
 lastW = window.innerWidth;
 load().then(function () { if (S.data) startPolling(); });
-window.__antheia = { S: S, scan: scan, cam: cam, render: render };  // untuk pengecekan / debugging
+window.__antheia = { S: S, scan: scan, cam: cam, render: render, noticeFor: noticeFor, findRec: findRec };  // untuk pengecekan / debugging
 })();
 </script>
 <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>
